@@ -4,38 +4,61 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  // 1. Connect to Supabase using the master admin key
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // 2. Create the user directly
-  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email: 'admin@sociohub.test',
+  const demoTenantId = '11111111-1111-1111-1111-111111111111'
+
+  // 1. Ensure a Demo Society exists
+  await supabaseAdmin.from('societies').upsert({
+    id: demoTenantId,
+    name: 'Oasis Heights',
+    address: '123 Main St',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    pincode: '560001',
+    contact_email: 'admin@oasis.com',
+    status: 'ACTIVE'
+  })
+
+  // 2. Create Society Admin
+  const { data: socAuth, error: socErr } = await supabaseAdmin.auth.admin.createUser({
+    email: 'society@sociohub.test',
     password: 'SecurePass123!',
     email_confirm: true,
   })
 
-  if (authError) {
-    // If user already exists, it will tell us
-    return NextResponse.json({ step: 'Auth User Creation', error: authError.message })
+  if (!socErr) {
+    await supabaseAdmin.from('profiles').upsert({
+      id: socAuth.user.id,
+      tenant_id: demoTenantId,
+      role: 'SOCIETY_ADMIN',
+      first_name: 'Society',
+      last_name: 'Manager'
+    })
   }
 
-  // 3. Link them as a Super Admin in your profiles table
-  const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-    id: authData.user.id,
-    role: 'SUPER_ADMIN',
-    first_name: 'Super',
-    last_name: 'Admin'
+  // 3. Create Resident
+  const { data: resAuth, error: resErr } = await supabaseAdmin.auth.admin.createUser({
+    email: 'resident@sociohub.test',
+    password: 'SecurePass123!',
+    email_confirm: true,
   })
 
-  if (profileError) {
-    return NextResponse.json({ step: 'Profile Creation', error: profileError.message })
+  if (!resErr) {
+    await supabaseAdmin.from('profiles').upsert({
+      id: resAuth.user.id,
+      tenant_id: demoTenantId,
+      role: 'RESIDENT',
+      first_name: 'Rahul',
+      last_name: 'Resident'
+    })
   }
 
   return NextResponse.json({ 
     success: true, 
-    message: 'Admin account completely set up! You can now log in.' 
+    message: 'Test accounts created successfully!' 
   })
 }
